@@ -11,7 +11,6 @@ import (
 	"github.com/synw/terr"
 	"html/template"
 	"net/http"
-	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -48,13 +47,17 @@ type httpResponseWriter struct {
 func InitHttpServer(server *types.DashboardServer, serve bool) {
 	// routing
 	r := chi.NewRouter()
+	// middleware
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.StripSlashes)
+	// static
+	filesDir := filepath.Join(dir, "static")
+	r.FileServer("/static", http.Dir(filesDir))
 	// main route
 	r.Route("/", func(r chi.Router) {
-		r.Get("/*", serveRequest)
+		r.Get("/", serveRequest)
 	})
 	fmt.Println("ADDR", server.Addr)
 
@@ -66,10 +69,6 @@ func InitHttpServer(server *types.DashboardServer, serve bool) {
 		Handler:      r,
 	}
 	server.Instance = httpServer
-	// static
-	workDir, _ := os.Getwd()
-	filesDir := filepath.Join(workDir, "static")
-	r.FileServer("/static", http.Dir(filesDir))
 	// run
 	if serve == true {
 		Run(server)
