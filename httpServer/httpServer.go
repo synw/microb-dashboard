@@ -59,8 +59,6 @@ func InitHttpServer(server *types.DashboardServer, serve bool) {
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", serveRequest)
 	})
-	fmt.Println("ADDR", server.Addr)
-
 	// init
 	httpServer := &http.Server{
 		Addr:         server.Addr,
