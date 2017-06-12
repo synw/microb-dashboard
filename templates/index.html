@@ -1,0 +1,48 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<title>{{ .Title }}</title>
+	{{ template "head.html" . }}
+</head>
+
+<body>
+<div id="app">
+	<div style="display:flex;flex-wrap:wrap">
+		<div id="header">
+			{{ template "header.html" . }}
+		</div>
+	</div>
+	<div id="document" v-html="jsonDoc()" v-show="isActive('doc')"></div>
+	<div id="content" class="flex two grow">
+		<div id="documents">
+			<div id="spinner" v-if="isActive('spinner')">
+				<span class="fa fa-spinner fa-pulse fa-3x fa-fw"></span>
+				<div id="spinner-text">Running query ...</div>
+			</div>
+			<div v-for="(d, i) in docs" v-if="isActive('docs')">
+				<div style="padding:0">
+					<div class="pull-right edit-btns">
+						<h3 class="btn">
+							<span class="label neutral">Json</span>
+						</h3>
+						<h3 class="btn edit-btn">
+							<span class="label" @click="editDoc(d)">Edit</span>
+						</h3>
+					</div>
+					<span class="num light big" v-html="getDocNum(i)"></span>
+				</div>
+				<div class="result_cell" v-html="formatDoc(i)">
+				</div>
+			</div>
+		</div>
+	</div>
+	<div id="footer">
+		
+	</div>
+	<script type="text/javascript" src="/static/js/vv.js"></script>
+	<script type="text/javascript" src="/static/vues/jsonedit.js"></script>
+	<script type="text/javascript" src="/static/vues/store.js"></script>
+	<script type="text/javascript" src="/static/vues/app.js"></script>
+</div>
+</body>
+</html>
