@@ -14,10 +14,20 @@ type DashboardServer struct {
 type Conf struct {
 	Domain string
 	Addr   string
+	WsAddr string
+	WsKey  string
+}
+
+type Conn struct {
+	Addr      string
+	Timestamp string
+	User      string
+	Token     string
 }
 
 type Page struct {
 	Url     string
 	Title   string
 	Content string
+	Conn    *Conn
 }

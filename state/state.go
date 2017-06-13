@@ -19,6 +19,6 @@ func InitState(dev bool, verbosity int) *terr.Trace {
 	instance := &http.Server{}
 	running := false
 	DashboardServer = &types.DashboardServer{Conf.Domain, Conf.Addr, instance, running}
-	httpServer.InitHttpServer(DashboardServer, false)
+	httpServer.InitHttpServer(DashboardServer, Conf.WsAddr, Conf.WsKey, false)
 	return nil
 }

@@ -25,6 +25,7 @@ func getConf(name string) (*types.Conf, *terr.Trace) {
 	viper.AddConfigPath(".")
 	viper.SetDefault("domain", "localhost")
 	viper.SetDefault("addr", "localhost:8090")
+	viper.SetDefault("centrifugo_addr", "localhost:8001")
 	// get the actual conf
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -40,7 +41,9 @@ func getConf(name string) (*types.Conf, *terr.Trace) {
 		}
 	}
 	domain := viper.GetString("domain")
-	addr := viper.GetString("addr")
-	conf := types.Conf{domain, addr}
+	url := viper.GetString("addr")
+	addr := viper.GetString("centrifugo_addr")
+	key := viper.GetString("centrifugo_key")
+	conf := types.Conf{domain, url, addr, key}
 	return &conf, nil
 }

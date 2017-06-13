@@ -2,15 +2,21 @@ package httpServer
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/acmacalister/skittles"
+	"github.com/centrifugal/centrifuge-go"
+	"github.com/centrifugal/centrifugo/libcentrifugo/auth"
 	"github.com/pressly/chi"
 	"github.com/pressly/chi/middleware"
 	"github.com/synw/microb-dashboard/types"
 	"github.com/synw/microb/libmicrob/events"
 	"github.com/synw/terr"
 	"html/template"
+	//"io/ioutil"
 	"net/http"
+	//"net/http/httputil"
+	//"bufio"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -18,33 +24,40 @@ import (
 	"time"
 )
 
-var dir = getDir()
-
-func getDir() string {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("No caller information")
-	}
-	d := fmt.Sprintf("%s", path.Dir(filename))
-	d = strings.Replace(d, "/httpServer", "", -1)
-	return d
+type httpResponseWriter struct {
+	http.ResponseWriter
+	status *int
 }
 
-func getTemplate(name string) string {
-	t := dir + "/templates/" + name + ".html"
-	return t
+type authRequest struct {
+	Client   string   `json:client`
+	Channels []string `json:channels`
+}
+
+var dir = getDir()
+var conn *types.Conn
+var key string
+
+func getToken(user string, timestamp string, secret string) string {
+	info := ""
+	token := auth.GenerateClientToken(secret, user, timestamp, info)
+	return token
+}
+
+func initWs(addr string, k string) {
+	key = k
+	user := "microb_dashboard"
+	timestamp := centrifuge.Timestamp()
+	token := getToken(user, timestamp, key)
+	conn = &types.Conn{addr, timestamp, user, token}
 }
 
 var View = template.Must(template.New("index.html").ParseFiles(getTemplate("index"), getTemplate("head"), getTemplate("header"), getTemplate("navbar"), getTemplate("footer")))
 var V404 = template.Must(template.New("404.html").ParseFiles(getTemplate("404"), getTemplate("head"), getTemplate("header"), getTemplate("navbar"), getTemplate("footer")))
 var V500 = template.Must(template.New("500.html").ParseFiles(getTemplate("500"), getTemplate("head"), getTemplate("header"), getTemplate("navbar"), getTemplate("footer")))
 
-type httpResponseWriter struct {
-	http.ResponseWriter
-	status *int
-}
-
-func InitHttpServer(server *types.DashboardServer, serve bool) {
+func InitHttpServer(server *types.DashboardServer, addr string, key string, serve bool) {
+	initWs(addr, key)
 	// routing
 	r := chi.NewRouter()
 	// middleware
@@ -55,7 +68,10 @@ func InitHttpServer(server *types.DashboardServer, serve bool) {
 	// static
 	filesDir := filepath.Join(dir, "static")
 	r.FileServer("/static", http.Dir(filesDir))
-	// main route
+	// routes
+	r.Route("/centrifuge", func(r chi.Router) {
+		r.Post("/auth", serveAuth)
+	})
 	r.Route("/", func(r chi.Router) {
 		r.Get("/", serveRequest)
 	})
@@ -71,6 +87,32 @@ func InitHttpServer(server *types.DashboardServer, serve bool) {
 	if serve == true {
 		Run(server)
 	}
+}
+
+func serveAuth(resp http.ResponseWriter, req *http.Request) {
+	decoder := json.NewDecoder(req.Body)
+	var data authRequest
+	err := decoder.Decode(&data)
+	if err != nil {
+		fmt.Println(err)
+	}
+	r := map[string]map[string]string{}
+	for _, channel := range data.Channels {
+		client := data.Client
+		info := ""
+		sign := auth.GenerateChannelSign(key, client, channel, info)
+		s := map[string]string{
+			"sign": sign,
+			"info": info,
+		}
+		r[channel] = s
+	}
+	resp.Header().Set("Content-Type", "application/json")
+	json_bytes, err := json.Marshal(r)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Fprintf(resp, "%s\n", json_bytes)
 }
 
 func Run(server *types.DashboardServer) {
@@ -95,33 +137,35 @@ func Stop(server *types.DashboardServer) *terr.Trace {
 	return nil
 }
 
-func renderTemplate(response http.ResponseWriter, page *types.Page) {
-	err := View.Execute(response, page)
+// internal methods
+
+func renderTemplate(resp http.ResponseWriter, page *types.Page) {
+	err := View.Execute(resp, page)
 	if err != nil {
-		http.Error(response, err.Error(), http.StatusInternalServerError)
+		http.Error(resp, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func render404(response http.ResponseWriter, page *types.Page) {
-	err := V404.Execute(response, page)
+func render404(resp http.ResponseWriter, page *types.Page) {
+	err := V404.Execute(resp, page)
 	if err != nil {
-		http.Error(response, err.Error(), http.StatusInternalServerError)
+		http.Error(resp, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func render500(response http.ResponseWriter, page *types.Page) {
-	err := V500.Execute(response, page)
+func render500(resp http.ResponseWriter, page *types.Page) {
+	err := V500.Execute(resp, page)
 	if err != nil {
-		http.Error(response, err.Error(), http.StatusInternalServerError)
+		http.Error(resp, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func serveRequest(response http.ResponseWriter, request *http.Request) {
-	url := request.URL.Path
+func serveRequest(resp http.ResponseWriter, req *http.Request) {
+	url := req.URL.Path
 	status := http.StatusOK
-	page := &types.Page{Url: url, Title: "Microb", Content: ""}
-	response = httpResponseWriter{response, &status}
-	renderTemplate(response, page)
+	page := &types.Page{url, "Microb", "", conn}
+	resp = httpResponseWriter{resp, &status}
+	renderTemplate(resp, page)
 }
 
 func stopMsg() string {
@@ -133,4 +177,19 @@ func startMsg(server *types.DashboardServer) string {
 	var msg string
 	msg = "Dashboard server started at " + server.Addr + " for domain " + skittles.BoldWhite(server.Domain)
 	return msg
+}
+
+func getDir() string {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("No caller information")
+	}
+	d := fmt.Sprintf("%s", path.Dir(filename))
+	d = strings.Replace(d, "/httpServer", "", -1)
+	return d
+}
+
+func getTemplate(name string) string {
+	t := dir + "/templates/" + name + ".html"
+	return t
 }
