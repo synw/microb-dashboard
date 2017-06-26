@@ -43,7 +43,7 @@
 		    }
 		}
 		
-		var subscription = centrifuge.subscribe("$microb", callbacks);
+		var subscription = centrifuge.subscribe("$logchan", callbacks);
 		
 		centrifuge.on('connect', function(context) {
 			console.log("Connection ("+context.latency+"ms)");

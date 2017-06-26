@@ -4,7 +4,7 @@ import (
 	"github.com/synw/microb-dashboard/state"
 	"github.com/synw/microb-dashboard/state/mutate"
 	"github.com/synw/microb-dashboard/types"
-	"github.com/synw/microb/libmicrob/datatypes"
+	datatypes "github.com/synw/microb/libmicrob/types"
 	"github.com/synw/terr"
 )
 
